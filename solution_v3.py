@@ -6,13 +6,15 @@ file = open("month", 'r')
 # file = open("day", 'r')
 # file = open("data", 'r')
 lines = file.readlines()
+finalpaths = []
 
 mat_contents = sio.loadmat('HH_Sim_Spot_1000_500eachVIC1_forBattery_2018-08-15.mat')
 current = 0
 next = 1
+triggle_price = -100000
 
 
-def max_profit(capacity, index, no_action, buy_action, sell_action):
+def max_profit(capacity, index, no_action, buy_action, sell_action, paths, current, next):
     value = max(no_action, buy_action, sell_action)
     if value == no_action:
         paths[next][capacity] = paths[current][capacity]
@@ -35,16 +37,21 @@ def max_profit(capacity, index, no_action, buy_action, sell_action):
     return value
 
 
-for index_simulation in range(len(mat_contents['Spot_Sims'])):
+file = open("Dispatches_1000_stimulation", 'w')
+for index_simulation in range(len(mat_contents['Spot_Sims'][0])):
+    # print(len(mat_contents['Spot_Sims'][0]))
     datas = []
     for i in range(len(mat_contents['Spot_Sims'])):
         # print (str(i) + ' ' + str(mat_contents['Spot_Sims'][i][0]))
-        datas.append( mat_contents['Spot_Sims'][i][index_simulation])
+        datas.append(mat_contents['Spot_Sims'][i][index_simulation])
     patterns = []
     dp = [[0.0] * 5 for i in range(2)]
     paths = [[[] for i in range(5)] for j in range(2)]
     path = []
+    current = 0
+    next = 1
 
+    # print(len(datas))
     for i in range(2):
         for j in range(5):
             paths[i][j] = ''
@@ -60,32 +67,53 @@ for index_simulation in range(len(mat_contents['Spot_Sims'])):
         if i == 1:
             # dp[next][0] = max(dp[current][0], dp[current][1] + sell)
             # dp[next][1] = max(dp[current][1], dp[current][0] + buy)
-            dp[next][0] = max_profit(0, i, dp[current][0], -100000, dp[current][1] + sell)
-            dp[next][1] = max_profit(1, i, dp[current][1], dp[current][0] + buy, -100000)
+            dp[next][0] = max_profit(0, i, dp[current][0], -100000,
+                                     dp[current][1] + sell if datas[i] > triggle_price else -10000000, paths,
+                                     current,
+                                     next)
+            dp[next][1] = max_profit(1, i, dp[current][1], dp[current][0] + buy, -100000, paths, current, next)
 
         if i == 2:
             # dp[next][1] = max(dp[next][1], dp[current][2] + sell)
             # dp[next][2] = max(dp[current][2], dp[current][1] + buy)
-            dp[next][0] = max_profit(0, i, dp[current][0], -100000, dp[current][1] + sell)
-            dp[next][1] = max_profit(1, i, dp[current][1], dp[current][0] + buy, dp[current][2] + sell)
-            dp[next][2] = max_profit(2, i, dp[current][2], dp[current][1] + buy, -100000)
+            dp[next][0] = max_profit(0, i, dp[current][0], -100000,
+                                     dp[current][1] + sell if datas[i] > triggle_price else -10000000, paths,
+                                     current, next)
+            dp[next][1] = max_profit(1, i, dp[current][1], dp[current][0] + buy,
+                                     dp[current][2] + sell if datas[i] > triggle_price else -10000000, paths,
+                                     current, next)
+            dp[next][2] = max_profit(2, i, dp[current][2], dp[current][1] + buy, -100000, paths, current, next)
 
         if i == 3:
             # dp[next][2] = max(dp[next][2], dp[current][3] + sell)
             # dp[next][3] = max(dp[current][3], dp[current][2] + buy)
-            dp[next][0] = max_profit(0, i, dp[current][0], -100000, dp[current][1] + sell)
-            dp[next][1] = max_profit(1, i, dp[current][1], dp[current][0] + buy, dp[current][2] + sell)
-            dp[next][2] = max_profit(2, i, dp[current][2], dp[current][1] + buy, dp[current][3] + sell)
-            dp[next][3] = max_profit(3, i, dp[current][3], dp[current][2] + buy, -100000)
+            dp[next][0] = max_profit(0, i, dp[current][0], -100000,
+                                     dp[current][1] + sell if datas[i] > triggle_price else -10000000, paths,
+                                     current, next)
+            dp[next][1] = max_profit(1, i, dp[current][1], dp[current][0] + buy,
+                                     dp[current][2] + sell if datas[i] > triggle_price else -10000000, paths,
+                                     current, next)
+            dp[next][2] = max_profit(2, i, dp[current][2], dp[current][1] + buy,
+                                     dp[current][3] + sell if datas[i] > triggle_price else -10000000, paths,
+                                     current, next)
+            dp[next][3] = max_profit(3, i, dp[current][3], dp[current][2] + buy, -100000, paths, current, next)
 
         if i > 3:
             # dp[next][3] = max(dp[next][3], dp[current][4] + sell)
             # dp[next][4] = max(dp[current][4], dp[current][3] + buy)
-            dp[next][0] = max_profit(0, i, dp[current][0], -100000, dp[current][1] + sell)
-            dp[next][1] = max_profit(1, i, dp[current][1], dp[current][0] + buy, dp[current][2] + sell)
-            dp[next][2] = max_profit(2, i, dp[current][2], dp[current][1] + buy, dp[current][3] + sell)
-            dp[next][3] = max_profit(3, i, dp[current][3], dp[current][2] + buy, dp[current][4] + sell)
-            dp[next][4] = max_profit(4, i, dp[current][4], dp[current][3] + buy, -100000)
+            dp[next][0] = max_profit(0, i, dp[current][0], -100000,
+                                     dp[current][1] + sell if datas[i] > triggle_price else -10000000, paths,
+                                     current, next)
+            dp[next][1] = max_profit(1, i, dp[current][1], dp[current][0] + buy,
+                                     dp[current][2] + sell if datas[i] > triggle_price else -10000000, paths,
+                                     current, next)
+            dp[next][2] = max_profit(2, i, dp[current][2], dp[current][1] + buy,
+                                     dp[current][3] + sell if datas[i] > triggle_price else -10000000, paths,
+                                     current, next)
+            dp[next][3] = max_profit(3, i, dp[current][3], dp[current][2] + buy,
+                                     dp[current][4] + sell if datas[i] > triggle_price else -10000000, paths,
+                                     current, next)
+            dp[next][4] = max_profit(4, i, dp[current][4], dp[current][3] + buy, -100000, paths, current, next)
 
         temp = current
         current = next
@@ -98,6 +126,9 @@ for index_simulation in range(len(mat_contents['Spot_Sims'])):
             path = paths[current][i]
 
     print(profit)
-    print(path)
-    # for i in path:
-    #     print(i)
+    print(index_simulation)
+    finalpaths.append(path)
+    file.write(str(index_simulation) + ' ' + str(path) + "\n")
+
+# for s in finalpaths:
+#     file.write(str(s) + "\n")
