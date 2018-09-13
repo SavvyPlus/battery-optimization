@@ -2,3 +2,4 @@
 venv/
 HH_Sim_Spot_1000_500eachVIC1_forBattery_2018-08-15.mat
 Spot_TestData_2018-08-15.mat
+*.csv
