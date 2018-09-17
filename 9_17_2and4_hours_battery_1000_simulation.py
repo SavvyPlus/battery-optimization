@@ -1,4 +1,5 @@
 from FileUtils import write_to
+import scipy.io as sio
 
 
 # trigger_price = 300  # 100 300
@@ -14,26 +15,58 @@ from FileUtils import write_to
 # file = open("data", 'r')
 
 def main():
+    mat_contents = sio.loadmat('inputs/StressedSpotPrices.mat')
+
     prefixes = [30]
-
-    trigger_price_array = [-1000000, 100, 300]
+    trigger_price_array = [-1000000, 300]
     capacity_battery_array = [200, 400]
-    input_folder = 'inputs/'
-    input_files = ["spot_0th_30min", "spot_5th_30min", "spot_25th_30min", "spot_50th_30min", "spot_75th_30min",
-                   "spot_95th_30min", "spot_100th_30min"]
 
-    for i in range(len(input_files)):
-        file = open(input_folder + input_files[i])
-        # file = open("real_data_5min")
-        lines = file.readlines()
-        data = []
-        for l in lines:
-            data.append(float(l))
+    for scenario in range(4):
         for prefix in prefixes:
             for trigger_price in trigger_price_array:
                 for capacity_battery in capacity_battery_array:
+                    print(str(scenario) + "_" + str(trigger_price) + "_" + str(capacity_battery))
+                    paths = []
+                    datas = []
                     times_to_full_charge = (60 / prefix) * (capacity_battery / 100)
-                    run(data, int(times_to_full_charge), capacity_battery, input_files[i], str(prefix), trigger_price)
+                    amount_per_charge = capacity_battery / times_to_full_charge
+                    trigger_tag = '_trigger_' + str(trigger_price) if trigger_price > 0 else ''
+                    appendix = "_battery capacity_" + str(capacity_battery)
+
+                    for index_simulation in range(1000):
+                        data = []
+
+                        for l in range(18528):
+                            data.append(float(mat_contents['adjusted_spot_prices'][l][index_simulation][scenario]))
+
+                        path = run(data, int(times_to_full_charge), capacity_battery, trigger_price)
+                        paths.append(path)
+                        datas.append(data)
+                        print(index_simulation)
+                    write_to_file(datas, paths, amount_per_charge, "scenario_" + str(scenario), appendix,
+                                  trigger_tag)
+
+
+def write_to_file(datas, paths, amount_per_charge, input_file, appendix, trigger_tag):
+    field_names = []
+    for i in range(len(paths)):
+        field_names.append("profit_" + str(i))
+    rows = []
+    for index_row in range(len(paths[0])):
+        row = {}
+        for index_simulation in range(1000):
+            revenue = 0
+            cost = 0
+            if paths[index_simulation][index_row] == '1':
+                revenue = 0
+                cost = datas[index_simulation][index_row] * amount_per_charge * 1.2
+            elif paths[index_simulation][index_row] == '2':
+                revenue = datas[index_simulation][index_row] * amount_per_charge
+                cost = 0
+            row["profit_" + str(index_simulation)] = revenue - cost
+        rows.append(row)
+    write_to("output/30_mins_forecasting" + "_" + input_file + trigger_tag + appendix + '.csv', rows,
+             field_names)
 
 
 def max_profit(capacity, index, no_action, buy_action, sell_action, paths, current, next):
@@ -59,53 +92,15 @@ def max_profit(capacity, index, no_action, buy_action, sell_action, paths, curre
     return value
 
 
-def write_to_file(data, path, amount_per_charge, input_file, prefix, appendix, trigger_tag):
-    field_names = ['Time_Ending', 'Price', 'Dispatch', 'Energy Level', 'Discharge Energy (MWh)', 'Charge Energy (MWh)',
-                   'Revenue', 'Cost', 'Profit']
-    time_ending = open("Time_Ending_" + prefix)
-    times = time_ending.readlines()
-    rows = []
-    count = 0
-    for index in range(len(path)):
-        row = {'Price': data[index], 'Time_Ending': times[index].replace('\n', '')}
-        if path[index] == '1':
-            count += 1
-            row['Dispatch'] = 'Charge'
-            row['Revenue'] = 0
-            row['Cost'] = data[index] * amount_per_charge * 1.2
-            row['Discharge Energy (MWh)'] = 0
-            row['Charge Energy (MWh)'] = amount_per_charge * 1.2
-        elif path[index] == '2':
-            row['Dispatch'] = 'Discharge'
-            row['Revenue'] = data[index] * amount_per_charge
-            row['Cost'] = 0
-            row['Discharge Energy (MWh)'] = amount_per_charge
-            row['Charge Energy (MWh)'] = 0
-            count -= 1
-        else:
-            row['Dispatch'] = ''
-            row['Revenue'] = 0
-            row['Cost'] = 0
-            row['Discharge Energy (MWh)'] = 0
-            row['Charge Energy (MWh)'] = 0
-        row['Profit'] = row['Revenue'] - row['Cost']
-        row['Energy Level'] = count * amount_per_charge
-        rows.append(row)
-    write_to("output/" + prefix + '_mins_forecasting' + trigger_tag + appendix + "_" + input_file + '.csv', rows,
-             field_names)
-
-
-def run(data, times_to_full_charge, capacity_battery, input_file, prefix, trigger_price):
-    trigger_tag = '_trigger_' + str(trigger_price) if trigger_price > 0 else ''
+def run(data, times_to_full_charge, capacity_battery, trigger_price):
     amount_per_charge = capacity_battery / times_to_full_charge
-    appendix = "_battery capacity_" + str(capacity_battery)
+
     dp = [[0.0] * (times_to_full_charge + 1) for i in range(2)]
     paths = [[[] for i in range(times_to_full_charge + 1)] for j in range(2)]
     path = []
     current = 0
     next = 1
 
-    # print(len(datas))
     for i in range(2):
         for j in range(times_to_full_charge + 1):
             paths[i][j] = ''
@@ -146,10 +141,9 @@ def run(data, times_to_full_charge, capacity_battery, input_file, prefix, trigge
         if profit == dp[current][i]:
             path = paths[current][i]
 
-    print(profit)
-    print(path)
-
-    write_to_file(data, path, amount_per_charge, input_file, prefix, appendix, trigger_tag)
+    # print(profit)
+    # print(path)
+    return path
 
 
 if __name__ == '__main__':
