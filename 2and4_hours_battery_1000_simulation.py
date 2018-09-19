@@ -1,6 +1,6 @@
-from FileUtils import write_to
 from FileUtils import write_to_
 import scipy.io as sio
+from mpi4py import MPI
 
 
 # trigger_price = 300  # 100 300
@@ -16,60 +16,59 @@ import scipy.io as sio
 # file = open("data", 'r')
 
 def main():
-    mat_contents = sio.loadmat('inputs/Spot2023.mat')
+    mat_contents = sio.loadmat('inputs/SpotPriceVREAS.mat')
 
     prefixes = [30]
     trigger_price_array = [300]
     capacity_battery_array = [400]
+    scenarios = range(1)
 
-    # for scenario in range(4):
-    for prefix in prefixes:
-        for trigger_price in trigger_price_array:
-            for capacity_battery in capacity_battery_array:
-                # print(str(scenario) + "_" + str(trigger_price) + "_" + str(capacity_battery))
-                paths = []
-                datas = []
-                times_to_full_charge = (60 / prefix) * (capacity_battery / 100)
-                amount_per_charge = capacity_battery / times_to_full_charge
-                trigger_tag = '_trigger_' + str(trigger_price) if trigger_price > 0 else ''
-                appendix = "_battery capacity_" + str(capacity_battery)
+    # simulation_size = 3
+    # simulation_start = 0
+    all_size = 1000
+    fragments = 8
 
-                for index_simulation in range(1000):
-                    data = []
+    for scenario in scenarios:
+        for prefix in prefixes:
+            for trigger_price in trigger_price_array:
+                for capacity_battery in capacity_battery_array:
+                    print(str(scenario) + "_" + str(trigger_price) + "_" + str(capacity_battery))
 
-                    for l in range(17520):
-                        data.append(float(mat_contents['Spot2023'][l][index_simulation]))
+                    times_to_full_charge = (60 / prefix) * (capacity_battery / 100)
+                    amount_per_charge = capacity_battery / times_to_full_charge
+                    trigger_tag = '_trigger_' + str(trigger_price) if trigger_price > 0 else ''
+                    appendix = "_battery capacity_" + str(capacity_battery)
 
-                    path = run(data, int(times_to_full_charge), capacity_battery, trigger_price)
-                    paths.append(path)
-                    datas.append(data)
-                    print(index_simulation)
-                # write_to_file(datas, paths, amount_per_charge, "_Sport2023_", appendix, trigger_tag)
-                write_to_file_discharge(datas, paths, amount_per_charge, "_Sport2023_discharges_", appendix,
-                                        trigger_tag)
+                    # comm = MPI.COMM_WORLD
+                    # rank = comm.Get_rank()
+                    # size = comm.Get_size()
+
+                    for i in range(fragments):
+                        # if i == rank:
+                            paths = []
+                            datas = []
+                            simulation_size = int(all_size / fragments)
+                            simulation_start = i * simulation_size
+                            for index_simulation in range(simulation_start, simulation_start + simulation_size):
+                                data = []
+
+                                for l in range(210672):
+                                    data.append(float(mat_contents['SpotPrices'][l][index_simulation]))
+
+                                path = run(data, int(times_to_full_charge), capacity_battery, trigger_price)
+                                paths.append(path)
+                                datas.append(data)
+                                print(index_simulation)
+                            write_to_file(datas, paths, amount_per_charge, "scenario_" + str(scenario), appendix,
+                                          trigger_tag, simulation_start, simulation_size)
 
 
-def write_to_file_discharge(datas, paths, amount_per_charge, input_file, appendix, trigger_tag):
+def write_to_file(datas, paths, amount_per_charge, input_file, appendix, trigger_tag, simulation_start,
+                  simulation_size):
     rows = []
-    for index_row in range(len(paths[0])):
+    for index_simulation in range(simulation_size):
         row = []
-        for index_simulation in range(1000):
-            if paths[index_simulation][index_row] == '2':
-                row.append(amount_per_charge)
-            else:
-                row.append(0)
-        rows.append(row)
-    write_to_("output/30_mins_forecasting" + "_" + input_file + trigger_tag + appendix + '.csv', rows, )
-
-
-def write_to_file(datas, paths, amount_per_charge, input_file, appendix, trigger_tag):
-    field_names = []
-    for i in range(len(paths)):
-        field_names.append("profit_" + str(i))
-    rows = []
-    for index_row in range(len(paths[0])):
-        row = {}
-        for index_simulation in range(1000):
+        for index_row in range(210672):
             revenue = 0
             cost = 0
             if paths[index_simulation][index_row] == '1':
@@ -78,10 +77,11 @@ def write_to_file(datas, paths, amount_per_charge, input_file, appendix, trigger
             elif paths[index_simulation][index_row] == '2':
                 revenue = datas[index_simulation][index_row] * amount_per_charge
                 cost = 0
-            row["profit_" + str(index_simulation)] = revenue - cost
+            row.append(revenue - cost)
         rows.append(row)
-    write_to("output/30_mins_forecasting" + "_" + input_file + trigger_tag + appendix + '.csv', rows,
-             field_names)
+    write_to_(
+        "output/30_mins_forecasting" + "_" + input_file + trigger_tag + appendix + '.csv',
+        rows)
 
 
 def max_profit(capacity, index, no_action, buy_action, sell_action, paths, current, next):

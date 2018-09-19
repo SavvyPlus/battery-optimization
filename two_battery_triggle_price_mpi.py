@@ -2,6 +2,7 @@
 # mpiexec -n 4 python solution_v4.py
 from mpi4py import MPI
 import scipy.io as sio
+from mpi4py import MPI
 import json
 
 mat_contents = sio.loadmat('HH_Sim_Spot_1000_500eachVIC1_forBattery_2018-08-15.mat')
