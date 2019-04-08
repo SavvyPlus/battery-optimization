@@ -16,12 +16,11 @@ from mpi4py import MPI
 # file = open("data", 'r')
 
 def main():
-    mat_contents = sio.loadmat('inputs/SpotPriceVREAS.mat')
 
     prefixes = [30]
-    trigger_price_array = [300]
-    capacity_battery_array = [400]
-    scenarios = range(1)
+    trigger_price_array = [150]
+    capacity_battery_array = [200, 400]
+    scenarios = ['Spot_NegativeAdj_ISP_20181127.mat', 'Spot_NegativeAdj_VREAS_20181127.mat']
 
     # simulation_size = 3
     # simulation_start = 0
@@ -29,9 +28,11 @@ def main():
     fragments = 8
 
     for scenario in scenarios:
+        mat_contents = sio.loadmat('inputs/'+scenario)
         for prefix in prefixes:
             for trigger_price in trigger_price_array:
                 for capacity_battery in capacity_battery_array:
+
                     print(str(scenario) + "_" + str(trigger_price) + "_" + str(capacity_battery))
 
                     times_to_full_charge = (60 / prefix) * (capacity_battery / 100)
@@ -53,7 +54,7 @@ def main():
                                 data = []
 
                                 for l in range(210672):
-                                    data.append(float(mat_contents['SpotPrices'][l][index_simulation]))
+                                    data.append(float(mat_contents['Spot_Sims'][l][index_simulation]))
 
                                 path = run(data, int(times_to_full_charge), capacity_battery, trigger_price)
                                 paths.append(path)
@@ -73,9 +74,11 @@ def write_to_file(datas, paths, amount_per_charge, input_file, appendix, trigger
             cost = 0
             if paths[index_simulation][index_row] == '1':
                 revenue = 0
-                cost = datas[index_simulation][index_row] * amount_per_charge * 1.2
+                # cost = datas[index_simulation][index_row] * amount_per_charge * 1.2
+                cost = 1
             elif paths[index_simulation][index_row] == '2':
-                revenue = datas[index_simulation][index_row] * amount_per_charge
+                # revenue = datas[index_simulation][index_row] * amount_per_charge
+                revenue = 1
                 cost = 0
             row.append(revenue - cost)
         rows.append(row)

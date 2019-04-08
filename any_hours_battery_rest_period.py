@@ -2,7 +2,7 @@ from FileUtils import write_to_
 import hdf5storage
 from mpi4py import MPI
 import h5py
-
+import scipy.io as sio
 
 # trigger_price = 300  # 100 300
 # times_to_full_charge = 8  # 4 8
@@ -33,7 +33,7 @@ def main():
     mat_file_key = 'Spot_Sims'
 
     for scenario in scenarios:
-        mat_contents = h5py.File('inputs/'+scenario, driver='family')
+        mat_contents = sio.loadmat('inputs/'+scenario, driver='family')
         for prefix in prefixes:
             for trigger_price in trigger_price_array:
                 for capacity_battery in capacity_battery_array:
@@ -138,6 +138,9 @@ def run(data, times_to_full_charge, capacity_battery, trigger_price):
                 dp[current][i] -= data[k] * amount_per_charge * 1.2
 
         for j in range(i + 1 if i < times_to_full_charge else times_to_full_charge + 1):
+
+
+
             if j == 0:
                 dp[next][j] = max_profit(j, i, dp[current][j], -10000000,
                                          dp[current][j + 1] + sell if data[i] > trigger_price else -10000000,
