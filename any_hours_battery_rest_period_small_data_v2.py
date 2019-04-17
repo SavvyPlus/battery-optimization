@@ -1,9 +1,5 @@
 from FileUtils import write_to_
-import hdf5storage
-from mpi4py import MPI
-import h5py
-import scipy.io as sio
-
+# Scenario : three half-hours rest is necessary after every second discharge for one hour battery.
 
 # trigger_price = 300  # 100 300
 # times_to_full_charge = 8  # 4 8
@@ -17,10 +13,17 @@ file = open("datat", 'r')
 # file = open("daya", 'r')
 # file = open("data", 'r')
 
+lines = file.readlines()
+datas = []
+
+for l in lines:
+    datas.append(float(l))
+
+
 def main():
     prefixes = [30]
     trigger_price_array = [-100000]
-    capacity_battery_array = [100, 200]
+    capacity_battery_array = [100]
     power = 100
     # scenarios = ['Spot_Price_sample.mat']
     scenarios = ['Spot_Price_smallsample.mat']
@@ -33,7 +36,7 @@ def main():
     mat_file_key = 'Spot_Sims'
 
     for scenario in scenarios:
-        mat_contents = sio.loadmat('inputs/' + scenario, driver='family')
+        # mat_contents = sio.loadmat('inputs/' + scenario, driver='family')
         for prefix in prefixes:
             for trigger_price in trigger_price_array:
                 for capacity_battery in capacity_battery_array:
@@ -52,21 +55,22 @@ def main():
                     for i in range(fragments):
                         # if i == rank:
                         paths = []
-                        datas = []
+
                         simulation_size = int(all_size / fragments)
                         simulation_start = i * simulation_size
                         for index_simulation in range(simulation_start, simulation_start + simulation_size):
-                            data = []
-
-                            for l in range(length_simulation):
-                                data.append(float(mat_contents[mat_file_key].value[l][index_simulation]))
-
+                            data = datas
                             path = run(data, int(times_to_full_charge), capacity_battery, trigger_price)
                             paths.append(path)
                             datas.append(data)
-                            print(index_simulation)
-                        write_to_file(datas, paths, amount_per_charge, "scenario_" + str(scenario), appendix,
-                                      trigger_tag, simulation_start, simulation_size, length_simulation)
+                            print_all(path, data)
+                        # write_to_file(datas, paths, amount_per_charge, "scenario_" + str(scenario), appendix,
+                        #               trigger_tag, simulation_start, simulation_size, length_simulation)
+
+
+def print_all(path, data):
+    for i, j in zip(path, data):
+        print(i, j)
 
 
 def write_to_file(datas, paths, amount_per_charge, input_file, appendix, trigger_tag, simulation_start,
@@ -92,8 +96,8 @@ def write_to_file(datas, paths, amount_per_charge, input_file, appendix, trigger
         rows)
 
 
-def max_profit(capacity, index, no_action, buy_action, sell_action, paths, current, next):
-    value = max(no_action, buy_action, sell_action)
+def max_profit(capacity, index, no_action, buy_action, sell_action_1, sell_action_2, paths, current, next, pre):
+    value = max(no_action, buy_action, sell_action_1, sell_action_2)
     if value == no_action:
         paths[next][capacity] = paths[current][capacity]
         if len(paths[next][capacity]) <= index:
@@ -106,67 +110,89 @@ def max_profit(capacity, index, no_action, buy_action, sell_action, paths, curre
             paths[next][capacity] += '1'
         else:
             paths[next][capacity] = paths[next][capacity][:index] + '1' + paths[next][capacity][index + 1:]
-    elif value == sell_action:
+    elif value == sell_action_1:
         paths[next][capacity] = paths[current][capacity + 1]
         if len(paths[next][capacity]) <= index:
             paths[next][capacity] += '2'
         else:
             paths[next][capacity] = paths[next][capacity][:index] + '2' + paths[next][capacity][index + 1:]
+    elif value == sell_action_2:
+        paths[next][capacity] = paths[pre][capacity + 1]
+        if len(paths[next][capacity]) <= index:
+            paths[next][capacity] += '20'
+        else:
+            paths[next][capacity] = paths[next][capacity][:index] + '20' + paths[next][capacity][index + 2:]
     return value
 
 
 def run(data, times_to_full_charge, capacity_battery, trigger_price):
     amount_per_charge = capacity_battery / times_to_full_charge
 
-    history_size = 2
+    history_size = 3
+    loss_rate = 1.2
 
-    dp = [[0.0] * (times_to_full_charge + 1) for i in range(history_size)]
-    paths = [[[] for i in range(times_to_full_charge + 1)] for j in range(history_size)]
+    boundary = -10000000
+
+    states = [[State()] * (times_to_full_charge + 1) for i in range(history_size)]
+
+
     path = []
     current_i = 0
     next_i = 1
+    pre_i = 2
 
     for i in range(history_size):
         for j in range(times_to_full_charge + 1):
-            paths[i][j] = ''
             for k in range(j):
                 paths[i][j] += '1'
     paths[0][0] = '0'
     for i in range(1, len(data)):
         sell = data[i] * amount_per_charge
-        buy = - data[i] * amount_per_charge * 1.2
+        buy = - data[i] * amount_per_charge * loss_rate
         if 0 < i < times_to_full_charge + 1:
             for k in range(0, i):
-                dp[current_i][i] -= data[k] * amount_per_charge * 1.2
+                dp[current_i][i] -= data[k] * amount_per_charge * loss_rate
 
         for j in range(i + 1 if i < times_to_full_charge else times_to_full_charge + 1):
-            if paths[current_i][j] == '2':
-                dp[next_i][j] = max_profit(j, i, dp[current_i][j], -10000000,
-                                           -10000000,
-                                           paths,
-                                           current_i,
-                                           next_i)
-                continue
+            # if paths[current_i][j][i - 1] == '2':
+            #     dp[next_i][j] = max_profit(j, i, dp[current_i][j], -10000000,
+            #                                -10000000,-10000000,
+            #                                paths,
+            #                                current_i,
+            #                                next_i, pre_i)
+            #     continue
 
             if j == 0:
-                dp[next_i][j] = max_profit(j, i, dp[current_i][j], -10000000,
-                                           dp[current_i][j + 1] + sell if data[i] > trigger_price else -10000000,
+                sell_amount_1 = dp[current_i][j + 1] + sell if data[i] > trigger_price and paths[current_i][j + 1][
+                    i - 1] != '2' else boundary
+                sell_amount_2 = (dp[pre_i][j + 1] + sell) if data[i] > trigger_price and paths[pre_i][j + 1][
+                    i - 2] != '2' else boundary
+                dp[next_i][j] = max_profit(j, i, dp[current_i][j], boundary,
+                                           sell_amount_1, sell_amount_2,
                                            paths,
                                            current_i,
-                                           next_i)
+                                           next_i, pre_i)
             elif j == i or j == times_to_full_charge:
-                dp[next_i][j] = max_profit(j, i, dp[current_i][j], dp[current_i][j - 1] + buy, -10000000, paths,
+                buy_amount = dp[current_i][j - 1] + buy if paths[current_i][j - 1][i - 1] != '2' else boundary
+
+                dp[next_i][j] = max_profit(j, i, dp[current_i][j], buy_amount, boundary, boundary, paths,
                                            current_i,
-                                           next_i)
+                                           next_i, pre_i)
 
             elif 0 < j < i:
-                dp[next_i][j] = max_profit(j, i, dp[current_i][j], dp[current_i][j - 1] + buy,
-                                           dp[current_i][j + 1] + sell if data[i] > trigger_price else -10000000,
+                buy_amount = dp[current_i][j - 1] + buy if paths[current_i][j - 1][i - 1] != '2' else boundary
+                sell_amount_1 = dp[current_i][j + 1] + sell if data[i] > trigger_price and paths[current_i][j + 1][
+                    i - 1] != '2' else boundary
+                sell_amount_2 = (dp[pre_i][j + 1] + sell) if data[i] > trigger_price and paths[pre_i][j + 1][
+                    i - 2] != '2' else boundary
+                dp[next_i][j] = max_profit(j, i, dp[current_i][j], buy_amount, sell_amount_1
+                                           , sell_amount_2,
                                            paths,
-                                           current_i, next_i)
+                                           current_i, next_i, pre_i)
 
         current_i = (1 + current_i) % history_size
         next_i = (1 + next_i) % history_size
+        pre_i = (1 + pre_i) % history_size
 
     profit = -1000
     for i in range(0, times_to_full_charge + 1):
@@ -177,6 +203,25 @@ def run(data, times_to_full_charge, capacity_battery, trigger_price):
     # print(profit)
     # print(path)
     return path
+
+
+class State:
+    path = ''
+    value = 0
+    f_discharge = 0
+    s_discharge = 0
+
+    def get_p(self, i):
+        if len(self.path) > i:
+            return self.path[i]
+        else:
+            return None
+
+    def get_d1(self):
+        return self.f_discharge
+
+    def get_d2(self):
+        return self.s_discharge
 
 
 if __name__ == '__main__':

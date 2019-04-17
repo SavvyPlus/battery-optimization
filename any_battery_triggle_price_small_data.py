@@ -1,7 +1,7 @@
 from FileUtils import write_to
 
 trigger_price = -100000
-times_to_full_charge = 4
+times_to_full_charge = 2
 
 amount_per_charge = 120 / times_to_full_charge
 
@@ -11,7 +11,7 @@ amount_per_charge = 120 / times_to_full_charge
 # file = open("day", 'r')
 # file = open("daya", 'r')
 # file = open("data", 'r')
-file = open("real_data_" + str(int(amount_per_charge)) + "min")
+file = open("datat", 'r')
 # file = open("real_data_5min")
 lines = file.readlines()
 data = []
@@ -22,6 +22,9 @@ for l in lines:
 prefix = str(int(amount_per_charge))
 trigger_tag = '_trigger_' + str(trigger_price) if trigger_price > 0 else ''
 
+def print_all(path, data):
+    for i, j in zip(path, data):
+        print(i, j)
 
 def max_profit(capacity, index, no_action, buy_action, sell_action, paths, current, next):
     value = max(no_action, buy_action, sell_action)
@@ -125,7 +128,11 @@ for index_simulation in range(1):
 
     print(profit)
     print(path)
+    print_all(path,data)
 
-    write_to_file(data, path)
+
+
+
+    # write_to_file(data, path)
 # for s in finalpaths:
 #     file.write(str(s) + "\n")
