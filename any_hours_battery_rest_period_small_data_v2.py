@@ -1,4 +1,5 @@
 from FileUtils import write_to_
+
 # Scenario : three half-hours rest is necessary after every second discharge for one hour battery.
 
 # trigger_price = 300  # 100 300
@@ -96,109 +97,119 @@ def write_to_file(datas, paths, amount_per_charge, input_file, appendix, trigger
         rows)
 
 
-def max_profit(capacity, index, no_action, buy_action, sell_action_1, sell_action_2, paths, current, next, pre):
+def max_profit(capacity, index, no_action, buy_action, sell_action_1, sell_action_2, states, current, next):
     value = max(no_action, buy_action, sell_action_1, sell_action_2)
     if value == no_action:
-        paths[next][capacity] = paths[current][capacity]
-        if len(paths[next][capacity]) <= index:
-            paths[next][capacity] += '0'
+        states[next][capacity].path = states[current][capacity].path
+        if len(states[next][capacity].path) <= index:
+            states[next][capacity].path += '0'
         else:
-            paths[next][capacity] = paths[next][capacity][:index] + '0' + paths[next][capacity][index + 1:]
+            states[next][capacity].path = states[next][capacity].path[:index] + '0' + states[next][capacity].path[
+                                                                                      index + 1:]
     elif value == buy_action:
-        paths[next][capacity] = paths[current][capacity - 1]
-        if len(paths[next][capacity]) <= index:
-            paths[next][capacity] += '1'
+        states[next][capacity].path = states[current][capacity - 1].path
+        if len(states[next][capacity].path) <= index:
+            states[next][capacity].path += '1'
         else:
-            paths[next][capacity] = paths[next][capacity][:index] + '1' + paths[next][capacity][index + 1:]
+            states[next][capacity].path = states[next][capacity].path[:index] + '1' + states[next][capacity].path[
+                                                                                      index + 1:]
     elif value == sell_action_1:
-        paths[next][capacity] = paths[current][capacity + 1]
-        if len(paths[next][capacity]) <= index:
-            paths[next][capacity] += '2'
+        states[next][capacity].discharge()
+        states[next][capacity].path = states[current][capacity + 1].path
+        if len(states[next][capacity].path) <= index:
+            states[next][capacity].path += '2'
         else:
-            paths[next][capacity] = paths[next][capacity][:index] + '2' + paths[next][capacity][index + 1:]
+            states[next][capacity].path = states[next][capacity].path[:index] + '2' + states[next][capacity].path[
+                                                                                      index + 1:]
     elif value == sell_action_2:
-        paths[next][capacity] = paths[pre][capacity + 1]
-        if len(paths[next][capacity]) <= index:
-            paths[next][capacity] += '20'
+        states[next][capacity].discharge()
+        states[next][capacity].path = states[current - 3][capacity + 1].path
+        if len(states[next][capacity].path) <= index:
+            states[next][capacity].path += '2000'
         else:
-            paths[next][capacity] = paths[next][capacity][:index] + '20' + paths[next][capacity][index + 2:]
+            states[next][capacity].path = states[next][capacity].path[:index] + '2000' + states[next][capacity].path[
+                                                                                         index + 2:]
     return value
 
 
 def run(data, times_to_full_charge, capacity_battery, trigger_price):
     amount_per_charge = capacity_battery / times_to_full_charge
 
-    history_size = 3
+    history_size = len(data)
     loss_rate = 1.2
 
     boundary = -10000000
 
-    states = [[State()] * (times_to_full_charge + 1) for i in range(history_size)]
-
+    states = [[State(times_to_full_charge)] * (times_to_full_charge + 1) for i in range(history_size)]
 
     path = []
     current_i = 0
     next_i = 1
-    pre_i = 2
 
     for i in range(history_size):
         for j in range(times_to_full_charge + 1):
             for k in range(j):
-                paths[i][j] += '1'
-    paths[0][0] = '0'
+                states[i][j].path += '1'
+    states[0][0].path = '0'
     for i in range(1, len(data)):
         sell = data[i] * amount_per_charge
         buy = - data[i] * amount_per_charge * loss_rate
         if 0 < i < times_to_full_charge + 1:
             for k in range(0, i):
-                dp[current_i][i] -= data[k] * amount_per_charge * loss_rate
+                states[current_i][i].value -= data[k] * amount_per_charge * loss_rate
 
         for j in range(i + 1 if i < times_to_full_charge else times_to_full_charge + 1):
-            # if paths[current_i][j][i - 1] == '2':
-            #     dp[next_i][j] = max_profit(j, i, dp[current_i][j], -10000000,
-            #                                -10000000,-10000000,
-            #                                paths,
-            #                                current_i,
-            #                                next_i, pre_i)
-            #     continue
 
             if j == 0:
-                sell_amount_1 = dp[current_i][j + 1] + sell if data[i] > trigger_price and paths[current_i][j + 1][
-                    i - 1] != '2' else boundary
-                sell_amount_2 = (dp[pre_i][j + 1] + sell) if data[i] > trigger_price and paths[pre_i][j + 1][
-                    i - 2] != '2' else boundary
-                dp[next_i][j] = max_profit(j, i, dp[current_i][j], boundary,
-                                           sell_amount_1, sell_amount_2,
-                                           paths,
-                                           current_i,
-                                           next_i, pre_i)
-            elif j == i or j == times_to_full_charge:
-                buy_amount = dp[current_i][j - 1] + buy if paths[current_i][j - 1][i - 1] != '2' else boundary
+                sell_amount_1 = boundary
+                if not states[ ][j + 1].is_next_full_charge() and data[i] > trigger_price:
+                    sell_amount_1 = states[current_i][j + 1].value + sell
 
-                dp[next_i][j] = max_profit(j, i, dp[current_i][j], buy_amount, boundary, boundary, paths,
-                                           current_i,
-                                           next_i, pre_i)
+                sell_amount_2 = boundary
+                if current_i - 3 >= 0 and states[current_i - 3][j + 1].is_next_full_charge() and data[i] > trigger_price:
+                    sell_amount_2 = states[current_i - 3][j + 1].value + sell
+
+                states[next_i][j].value = max_profit(j, i, states[current_i][j].value, boundary,
+                                                     sell_amount_1, sell_amount_2,
+                                                     states,
+                                                     current_i,
+                                                     next_i)
+            elif j == i or j == times_to_full_charge:
+                buy_amount = boundary
+                if states[current_i][j - 1].can_charge(current_i):
+                    buy_amount = states[current_i][j - 1].value + buy
+
+                states[next_i][j].value = max_profit(j, i, states[current_i][j].value, buy_amount, boundary, boundary,
+                                                     states,
+                                                     current_i,
+                                                     next_i)
 
             elif 0 < j < i:
-                buy_amount = dp[current_i][j - 1] + buy if paths[current_i][j - 1][i - 1] != '2' else boundary
-                sell_amount_1 = dp[current_i][j + 1] + sell if data[i] > trigger_price and paths[current_i][j + 1][
-                    i - 1] != '2' else boundary
-                sell_amount_2 = (dp[pre_i][j + 1] + sell) if data[i] > trigger_price and paths[pre_i][j + 1][
-                    i - 2] != '2' else boundary
-                dp[next_i][j] = max_profit(j, i, dp[current_i][j], buy_amount, sell_amount_1
-                                           , sell_amount_2,
-                                           paths,
-                                           current_i, next_i, pre_i)
+                buy_amount = boundary
+                if states[current_i][j - 1].can_charge(current_i):
+                    buy_amount = states[current_i][j - 1].value + buy
+
+                sell_amount_1 = boundary
+                if not states[current_i][j + 1].is_next_full_charge() and data[i] > trigger_price:
+                    sell_amount_1 = states[current_i][j + 1].value + sell
+
+                sell_amount_2 = boundary
+                if current_i - 3 >= 0 and states[current_i - 3][j + 1].is_next_full_charge() and data[i] > trigger_price:
+                    sell_amount_2 = states[current_i - 3][j + 1].value + sell
+
+                states[next_i][j].value = max_profit(j, i, states[current_i][j].value, buy_amount, sell_amount_1
+                                                     , sell_amount_2,
+                                                     states,
+                                                     current_i, next_i)
 
         current_i = (1 + current_i) % history_size
         next_i = (1 + next_i) % history_size
-        pre_i = (1 + pre_i) % history_size
 
     profit = -1000
     for i in range(0, times_to_full_charge + 1):
-        profit = max(dp[current_i][i], profit)
-        if profit == dp[current_i][i]:
-            path = paths[current_i][i]
+        profit = max(states[current_i][i].value, profit)
+        if profit == states[current_i][i].value:
+            path = states[current_i][i].path
 
     # print(profit)
     # print(path)
@@ -208,8 +219,11 @@ def run(data, times_to_full_charge, capacity_battery, trigger_price):
 class State:
     path = ''
     value = 0
-    f_discharge = 0
-    s_discharge = 0
+    discharge_count = 0
+    full_charge_times = 0
+
+    def __init__(self, full_charge_times):
+        self.full_charge_times = full_charge_times
 
     def get_p(self, i):
         if len(self.path) > i:
@@ -217,11 +231,20 @@ class State:
         else:
             return None
 
-    def get_d1(self):
-        return self.f_discharge
+    def is_next_full_charge(self):
+        return (self.discharge_count + 1) % self.full_charge_times == 0
 
-    def get_d2(self):
-        return self.s_discharge
+    def discharge(self):
+        self.discharge_count += 1
+
+    def can_charge(self, current):
+        discharge_c = self.discharge_count
+        for i in range(1, 4):
+            if discharge_c % self.full_charge_times == 0:
+                return False
+            if self.get_p(current - i) == '2':
+                discharge_c -= 1
+        return True
 
 
 if __name__ == '__main__':
