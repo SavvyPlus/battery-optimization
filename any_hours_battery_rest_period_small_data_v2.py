@@ -70,8 +70,10 @@ def main():
 
 
 def print_all(path, data):
+    k = 0
     for i, j in zip(path, data):
-        print(i, j)
+        print(k, i, j)
+        k+=1
 
 
 def write_to_file(datas, paths, amount_per_charge, input_file, appendix, trigger_tag, simulation_start,
@@ -99,7 +101,9 @@ def write_to_file(datas, paths, amount_per_charge, input_file, appendix, trigger
 
 def max_profit(capacity, index, no_action, buy_action, sell_action_1, sell_action_2, states, current, next):
     value = max(no_action, buy_action, sell_action_1, sell_action_2)
+
     if value == no_action:
+        states[next][capacity].discharge_count = states[current][capacity].discharge_count
         states[next][capacity].path = states[current][capacity].path
         if len(states[next][capacity].path) <= index:
             states[next][capacity].path += '0'
@@ -107,6 +111,7 @@ def max_profit(capacity, index, no_action, buy_action, sell_action_1, sell_actio
             states[next][capacity].path = states[next][capacity].path[:index] + '0' + states[next][capacity].path[
                                                                                       index + 1:]
     elif value == buy_action:
+        states[next][capacity].discharge_count = states[current][capacity - 1].discharge_count
         states[next][capacity].path = states[current][capacity - 1].path
         if len(states[next][capacity].path) <= index:
             states[next][capacity].path += '1'
@@ -114,6 +119,7 @@ def max_profit(capacity, index, no_action, buy_action, sell_action_1, sell_actio
             states[next][capacity].path = states[next][capacity].path[:index] + '1' + states[next][capacity].path[
                                                                                       index + 1:]
     elif value == sell_action_1:
+        states[next][capacity].discharge_count = states[current][capacity + 1].discharge_count
         states[next][capacity].discharge()
         states[next][capacity].path = states[current][capacity + 1].path
         if len(states[next][capacity].path) <= index:
@@ -122,6 +128,7 @@ def max_profit(capacity, index, no_action, buy_action, sell_action_1, sell_actio
             states[next][capacity].path = states[next][capacity].path[:index] + '2' + states[next][capacity].path[
                                                                                       index + 1:]
     elif value == sell_action_2:
+        states[next][capacity].discharge_count = states[current - 3][capacity + 1].discharge_count
         states[next][capacity].discharge()
         states[next][capacity].path = states[current - 3][capacity + 1].path
         if len(states[next][capacity].path) <= index:
@@ -140,7 +147,12 @@ def run(data, times_to_full_charge, capacity_battery, trigger_price):
 
     boundary = -10000000
 
-    states = [[State(times_to_full_charge)] * (times_to_full_charge + 1) for i in range(history_size)]
+    states = []
+    for i in range(history_size):
+        one_row = []
+        for j in range(times_to_full_charge + 1):
+            one_row.append(State(times_to_full_charge))
+        states.append(one_row)
 
     path = []
     current_i = 0
@@ -162,11 +174,12 @@ def run(data, times_to_full_charge, capacity_battery, trigger_price):
 
             if j == 0:
                 sell_amount_1 = boundary
-                if not states[ ][j + 1].is_next_full_charge() and data[i] > trigger_price:
+                if not states[current_i][j + 1].is_next_full_charge() and data[i] > trigger_price:
                     sell_amount_1 = states[current_i][j + 1].value + sell
 
                 sell_amount_2 = boundary
-                if current_i - 3 >= 0 and states[current_i - 3][j + 1].is_next_full_charge() and data[i] > trigger_price:
+                if current_i - 3 >= 0 and states[current_i - 3][j + 1].is_next_full_charge() and \
+                        data[i] > trigger_price:
                     sell_amount_2 = states[current_i - 3][j + 1].value + sell
 
                 states[next_i][j].value = max_profit(j, i, states[current_i][j].value, boundary,
@@ -194,7 +207,8 @@ def run(data, times_to_full_charge, capacity_battery, trigger_price):
                     sell_amount_1 = states[current_i][j + 1].value + sell
 
                 sell_amount_2 = boundary
-                if current_i - 3 >= 0 and states[current_i - 3][j + 1].is_next_full_charge() and data[i] > trigger_price:
+                if current_i - 3 >= 0 and states[current_i - 3][j + 1].is_next_full_charge() and data[
+                    i] > trigger_price:
                     sell_amount_2 = states[current_i - 3][j + 1].value + sell
 
                 states[next_i][j].value = max_profit(j, i, states[current_i][j].value, buy_amount, sell_amount_1
@@ -232,18 +246,25 @@ class State:
             return None
 
     def is_next_full_charge(self):
-        return (self.discharge_count + 1) % self.full_charge_times == 0
+        if self.discharge_count == 0:
+            return False
+
+        return (self.discharge_count + 0) % self.full_charge_times == 0
 
     def discharge(self):
         self.discharge_count += 1
 
     def can_charge(self, current):
+        if self.discharge_count == 0:
+            return True
         discharge_c = self.discharge_count
-        for i in range(1, 4):
-            if discharge_c % self.full_charge_times == 0:
-                return False
+        if discharge_c % self.full_charge_times == 0:
+            return False
+        for i in range(2):
             if self.get_p(current - i) == '2':
                 discharge_c -= 1
+            if discharge_c % self.full_charge_times == 0:
+                return False
         return True
 
 
