@@ -1,4 +1,5 @@
 from FileUtils import write_to_
+import scipy.io as sio
 
 # Scenario : three half-hours rest is necessary after every second discharge for one hour battery.
 
@@ -7,18 +8,18 @@ from FileUtils import write_to_
 # capacity_battery = 400
 # prefix = str(30)  # minutes file
 
-file = open("datat", 'r')
+# file = open("datat", 'r')
 # file = open("week", 'r')
 # file = open("month", 'r')
 # file = open("day", 'r')
 # file = open("daya", 'r')
 # file = open("data", 'r')
 
-lines = file.readlines()
-datas = []
+# lines = file.readlines()
+# datas = []
 
-for l in lines:
-    datas.append(float(l))
+# for l in lines:
+#     datas.append(float(l))
 
 
 def main():
@@ -37,7 +38,7 @@ def main():
     mat_file_key = 'Spot_Sims'
 
     for scenario in scenarios:
-        # mat_contents = sio.loadmat('inputs/' + scenario, driver='family')
+        mat_contents = sio.loadmat('inputs/' + scenario, driver='family')
         for prefix in prefixes:
             for trigger_price in trigger_price_array:
                 for capacity_battery in capacity_battery_array:
@@ -56,17 +57,21 @@ def main():
                     for i in range(fragments):
                         # if i == rank:
                         paths = []
+                        datas = []
 
                         simulation_size = int(all_size / fragments)
                         simulation_start = i * simulation_size
                         for index_simulation in range(simulation_start, simulation_start + simulation_size):
-                            data = datas
+                            data = []
+
+                            for l in range(length_simulation):
+                                data.append(float(mat_contents[mat_file_key].value[l][index_simulation]))
                             path = run(data, int(times_to_full_charge), capacity_battery, trigger_price)
                             paths.append(path)
                             datas.append(data)
                             print_all(path, data)
-                        # write_to_file(datas, paths, amount_per_charge, "scenario_" + str(scenario), appendix,
-                        #               trigger_tag, simulation_start, simulation_size, length_simulation)
+                        write_to_file(datas, paths, amount_per_charge, "scenario_" + str(scenario), appendix,
+                                      trigger_tag, simulation_start, simulation_size, length_simulation)
 
 
 def print_all(path, data):
@@ -127,15 +132,15 @@ def max_profit(capacity, index, no_action, buy_action, sell_action_1, sell_actio
         else:
             states[next][capacity].path = states[next][capacity].path[:index] + '2' + states[next][capacity].path[
                                                                                       index + 1:]
-    elif value == sell_action_2:
-        states[next][capacity].discharge_count = states[current - 3][capacity + 1].discharge_count
-        states[next][capacity].discharge()
-        states[next][capacity].path = states[current - 3][capacity + 1].path
-        if len(states[next][capacity].path) <= index:
-            states[next][capacity].path += '2000'
-        else:
-            states[next][capacity].path = states[next][capacity].path[:index] + '2000' + states[next][capacity].path[
-                                                                                         index + 2:]
+    # elif value == sell_action_2:
+    #     states[next][capacity].discharge_count = states[current - 3][capacity + 1].discharge_count
+    #     states[next][capacity].discharge()
+    #     states[next][capacity].path = states[current - 3][capacity + 1].path
+    #     if len(states[next][capacity].path) <= index:
+    #         states[next][capacity].path += '0002'
+    #     else:
+    #         states[next][capacity].path = states[next][capacity].path[:index] + '0002' + states[next][capacity].path[
+    #                                                                                      index + 2:]
     return value
 
 
@@ -174,13 +179,13 @@ def run(data, times_to_full_charge, capacity_battery, trigger_price):
 
             if j == 0:
                 sell_amount_1 = boundary
-                if not states[current_i][j + 1].is_next_full_charge() and data[i] > trigger_price:
+                if states[current_i][j + 1].can_dispatch(current_i) and data[i] > trigger_price:
                     sell_amount_1 = states[current_i][j + 1].value + sell
 
                 sell_amount_2 = boundary
-                if current_i - 3 >= 0 and states[current_i - 3][j + 1].is_next_full_charge() and \
-                        data[i] > trigger_price:
-                    sell_amount_2 = states[current_i - 3][j + 1].value + sell
+                # if current_i - 3 >= 0 and states[current_i - 3][j + 1].is_next_full_charge() and \
+                #         data[i] > trigger_price:
+                #     sell_amount_2 = states[current_i - 3][j + 1].value + sell
 
                 states[next_i][j].value = max_profit(j, i, states[current_i][j].value, boundary,
                                                      sell_amount_1, sell_amount_2,
@@ -189,7 +194,7 @@ def run(data, times_to_full_charge, capacity_battery, trigger_price):
                                                      next_i)
             elif j == i or j == times_to_full_charge:
                 buy_amount = boundary
-                if states[current_i][j - 1].can_charge(current_i):
+                if states[current_i][j - 1].can_dispatch(current_i):
                     buy_amount = states[current_i][j - 1].value + buy
 
                 states[next_i][j].value = max_profit(j, i, states[current_i][j].value, buy_amount, boundary, boundary,
@@ -199,17 +204,17 @@ def run(data, times_to_full_charge, capacity_battery, trigger_price):
 
             elif 0 < j < i:
                 buy_amount = boundary
-                if states[current_i][j - 1].can_charge(current_i):
+                if states[current_i][j - 1].can_dispatch(current_i):
                     buy_amount = states[current_i][j - 1].value + buy
 
                 sell_amount_1 = boundary
-                if not states[current_i][j + 1].is_next_full_charge() and data[i] > trigger_price:
+                if states[current_i][j + 1].can_dispatch(current_i) and data[i] > trigger_price:
                     sell_amount_1 = states[current_i][j + 1].value + sell
 
                 sell_amount_2 = boundary
-                if current_i - 3 >= 0 and states[current_i - 3][j + 1].is_next_full_charge() and data[
-                    i] > trigger_price:
-                    sell_amount_2 = states[current_i - 3][j + 1].value + sell
+                # if current_i - 3 >= 0 and not states[current_i - 3][j + 1].is_next_full_charge() and data[
+                #     i] > trigger_price:
+                #     sell_amount_2 = states[current_i - 3][j + 1].value + sell
 
                 states[next_i][j].value = max_profit(j, i, states[current_i][j].value, buy_amount, sell_amount_1
                                                      , sell_amount_2,
@@ -245,27 +250,18 @@ class State:
         else:
             return None
 
-    def is_next_full_charge(self):
-        if self.discharge_count == 0:
-            return False
-
-        return (self.discharge_count + 0) % self.full_charge_times == 0
-
     def discharge(self):
         self.discharge_count += 1
 
-    def can_charge(self, current):
+    def can_dispatch(self, current):
         if self.discharge_count == 0:
             return True
         discharge_c = self.discharge_count
-        if discharge_c % self.full_charge_times == 0:
-            return False
-        for i in range(2):
-            if self.get_p(current - i) == '2':
-                discharge_c -= 1
-            if discharge_c % self.full_charge_times == 0:
-                return False
-        return True
+        if discharge_c % self.full_charge_times == 0 and '2' not in self.path[current-2:]:
+            return True
+        if discharge_c % self.full_charge_times != 0:
+            return True
+        return False
 
 
 if __name__ == '__main__':
