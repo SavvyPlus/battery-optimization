@@ -8,18 +8,18 @@ import scipy.io as sio
 # capacity_battery = 400
 # prefix = str(30)  # minutes file
 
-file = open("datat", 'r')
+# file = open("datat", 'r')
 # file = open("week", 'r')
 # file = open("month", 'r')
 # file = open("day", 'r')
 # file = open("daya", 'r')
 # file = open("data", 'r')
 
-lines = file.readlines()
-data = []
+# lines = file.readlines()
+# datas = []
 
-for l in lines:
-    data.append(float(l))
+# for l in lines:
+#     datas.append(float(l))
 
 
 def main():
@@ -38,7 +38,7 @@ def main():
     mat_file_key = 'Spot_Sims'
 
     for scenario in scenarios:
-        # mat_contents = sio.loadmat('inputs/' + scenario, driver='family')
+        mat_contents = sio.loadmat('inputs/' + scenario, driver='family')
         for prefix in prefixes:
             for trigger_price in trigger_price_array:
                 for capacity_battery in capacity_battery_array:
@@ -62,16 +62,16 @@ def main():
                         simulation_size = int(all_size / fragments)
                         simulation_start = i * simulation_size
                         for index_simulation in range(simulation_start, simulation_start + simulation_size):
-                            # data = []
-                            #
-                            # for l in range(length_simulation):
-                            #     data.append(float(mat_contents[mat_file_key].value[l][index_simulation]))
+                            data = []
+
+                            for l in range(length_simulation):
+                                data.append(float(mat_contents[mat_file_key].value[l][index_simulation]))
                             path = run(data, int(times_to_full_charge), capacity_battery, trigger_price)
                             paths.append(path)
                             datas.append(data)
                             print_all(path, data)
-                        # write_to_file(datas, paths, amount_per_charge, "scenario_" + str(scenario), appendix,
-                        #               trigger_tag, simulation_start, simulation_size, length_simulation)
+                        write_to_file(datas, paths, amount_per_charge, "scenario_" + str(scenario), appendix,
+                                      trigger_tag, simulation_start, simulation_size, length_simulation)
 
 
 def print_all(path, data):
@@ -230,7 +230,7 @@ def run(data, times_to_full_charge, capacity_battery, trigger_price):
         if profit == states[current_i][i].value:
             path = states[current_i][i].path
 
-    print(profit)
+    # print(profit)
     # print(path)
     return path
 

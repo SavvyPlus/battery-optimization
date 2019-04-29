@@ -1,8 +1,8 @@
 import random
 
 data = []
-for i in range(20):
-    data.append(str(random.randint(10, 100)))
+for i in range(20000):
+    data.append(str(random.randint(10, 1000)))
 
 file = open('datat', 'w')
 for l in data:
