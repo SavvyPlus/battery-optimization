@@ -1,9 +1,8 @@
 from FileUtils import write_to_
 import heapq
-import matplotlib.pyplot as plt
-import time
-
-# import scipy.io as sio
+import sys
+from os import walk
+import scipy.io as sio
 
 # Scenario : three half-hours rest is necessary after every second discharge for one hour battery.
 # For every iteration, record more states for each capacity and pick up topK of them to do the next iteration.
@@ -11,71 +10,69 @@ import time
 
 plot=[]
 
-def main(top_k):
-    file = open("datat", 'r')
-    lines = file.readlines()
-    data = []
 
-    for l in lines:
-        data.append(float(l))
+def load_inputs(folder):
+    f = []
+    for (dirpath, dirnames, filenames) in walk(folder):
+        f.extend(filenames)
+    return f
 
-    # top_k = 20
+
+def main():
+    scenario_index = sys.argv[1]
+    top_k = 25
+
     prefixes = [30]
     trigger_price_array = [-100000]
     capacity_battery_array = [100]
     power = 100
     # scenarios = ['Spot_Price_sample.mat']
-    scenarios = ['Spot_Price_smallsample.mat']
+    scenario_input_files = load_inputs('inputs')
 
     # simulation_size = 3
     # simulation_start = 0
-    all_size = 1
-    length_simulation = 35
+    all_size = 4500
     fragments = 1
     mat_file_key = 'Spot_Sims'
 
-    for scenario in scenarios:
-        # mat_contents = sio.loadmat('inputs/' + scenario, driver='family')
-        for prefix in prefixes:
-            for trigger_price in trigger_price_array:
-                for capacity_battery in capacity_battery_array:
+    # for scenario in scenario_input_files:
+    scenario = scenario_input_files[int(scenario_index)]
+    print(scenario)
+    mat_contents = sio.loadmat('inputs/' + scenario)
+    length_simulation = mat_contents[mat_file_key].shape[0]
+    print(length_simulation)
+    for prefix in prefixes:
+        for trigger_price in trigger_price_array:
+            for capacity_battery in capacity_battery_array:
 
-                    # print(str(scenario) + "_" + str(trigger_price) + "_" + str(capacity_battery))
+                # print(str(scenario) + "_" + str(trigger_price) + "_" + str(capacity_battery))
 
-                    times_to_full_charge = (60 / prefix) * (capacity_battery / power)
-                    amount_per_charge = capacity_battery / times_to_full_charge
-                    trigger_tag = '_trigger_' + str(trigger_price) if trigger_price > 0 else ''
-                    appendix = "_battery capacity_" + str(capacity_battery)
+                times_to_full_charge = (60 / prefix) * (capacity_battery / power)
+                amount_per_charge = capacity_battery / times_to_full_charge
+                trigger_tag = '_trigger_' + str(trigger_price) if trigger_price > 0 else ''
+                appendix = "_battery capacity_" + str(capacity_battery)
 
-                    # comm = MPI.COMM_WORLD
-                    # rank = comm.Get_rank()
-                    # size = comm.Get_size()
+                # comm = MPI.COMM_WORLD
+                # rank = comm.Get_rank()
+                # size = comm.Get_size()
 
-                    for i in range(fragments):
-                        # if i == rank:
-                        paths = []
-                        # datas = []
+                for i in range(fragments):
+                    # if i == rank:
+                    paths = []
+                    datas = []
 
-                        simulation_size = int(all_size / fragments)
-                        simulation_start = i * simulation_size
-                        for index_simulation in range(simulation_start, simulation_start + simulation_size):
-                            # data = []
-
-                            # for l in range(length_simulation):
-                            #     data.append(float(mat_contents[mat_file_key].value[l][index_simulation]))
-                            path = run(data, int(times_to_full_charge), capacity_battery, trigger_price, top_k)
-                            paths.append(path)
-                            # datas.append(data)
-                            # print_all(path, data)
-                        # write_to_file(datas, paths, amount_per_charge, "scenario_" + str(scenario), appendix,
-                        #               trigger_tag, simulation_start, simulation_size, length_simulation)
-
-
-def print_all(path, data):
-    k = 0
-    for i, j in zip(path, data):
-        print(k, i, j)
-        k += 1
+                    simulation_size = int(all_size / fragments)
+                    simulation_start = i * simulation_size
+                    for index_simulation in range(simulation_start, simulation_start + simulation_size):
+                        print(index_simulation)
+                        data = []
+                        for l in range(length_simulation):
+                            data.append(float(mat_contents[mat_file_key][l][index_simulation]))
+                        path = run(data, int(times_to_full_charge), capacity_battery, trigger_price, top_k)
+                        paths.append(path)
+                        datas.append(data)
+                    write_to_file(datas, paths, amount_per_charge, "scenario_" + str(scenario), appendix,
+                                  trigger_tag, simulation_start, simulation_size, length_simulation)
 
 
 def write_to_file(datas, paths, amount_per_charge, input_file, appendix, trigger_tag, simulation_start,
@@ -195,8 +192,8 @@ def run(data, times_to_full_charge, capacity_battery, trigger_price, top_k):
             profit = the_best_state[0].value
             path = the_best_state[0].path
 
-    print(top_k,profit)
-    plot.append(profit)
+    # print(top_k,profit)
+    # plot.append(profit)
     # print(path)
     return path
 
@@ -265,16 +262,4 @@ class State:
 
 
 if __name__ == '__main__':
-    x_axis = []
-    time_length = []
-    for i in range(21,30):
-        if i % 2 == 1:
-            start = time.time()
-            main(i)
-            x_axis.append(i)
-            time_length.append(time.time()-start)
-
-    plt.plot(x_axis,plot)
-    plt.show()
-    plt.plot(x_axis,time_length)
-    plt.show()
+    main()
