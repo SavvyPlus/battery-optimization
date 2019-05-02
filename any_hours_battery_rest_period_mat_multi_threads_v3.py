@@ -3,12 +3,13 @@ import heapq
 import sys
 from os import walk
 import scipy.io as sio
+import threading
 
 # Scenario : three half-hours rest is necessary after every second discharge for one hour battery.
 # For every iteration, record more states for each capacity and pick up topK of them to do the next iteration.
 # Use heap to achieve TopK in a log(K)*n complexity in time space.
 
-plot=[]
+plot = []
 
 
 def load_inputs(folder):
@@ -19,7 +20,7 @@ def load_inputs(folder):
 
 
 def main():
-    scenario_index = sys.argv[1]
+    # scenario_index = sys.argv[1]
     top_k = 25
 
     prefixes = [30]
@@ -31,48 +32,82 @@ def main():
 
     # simulation_size = 3
     # simulation_start = 0
-    fragments = 1
+    thread_size = 2
     mat_file_key = 'Spot_Sims'
+    thread_count = 0
 
-    # for scenario in scenario_input_files:
-    scenario = scenario_input_files[int(scenario_index)]
-    print(scenario)
-    mat_contents = sio.loadmat('inputs/' + scenario)
-    length_simulation = mat_contents[mat_file_key].shape[0]
-    all_size = mat_contents[mat_file_key].shape[1]
-    print(length_simulation)
-    for prefix in prefixes:
-        for trigger_price in trigger_price_array:
-            for capacity_battery in capacity_battery_array:
+    # scenario = scenario_input_files[int(scenario_index)]
+    for scenario in scenario_input_files:
+        if 'DS_Store' in scenario:
+            continue
+        print(scenario)
+        mat_contents = sio.loadmat('inputs/' + scenario)
+        length_simulation = mat_contents[mat_file_key].shape[0]
+        all_size = mat_contents[mat_file_key].shape[1]
+        print(length_simulation)
+        for prefix in prefixes:
+            for trigger_price in trigger_price_array:
+                for capacity_battery in capacity_battery_array:
 
-                # print(str(scenario) + "_" + str(trigger_price) + "_" + str(capacity_battery))
+                    # print(str(scenario) + "_" + str(trigger_price) + "_" + str(capacity_battery))
 
-                times_to_full_charge = (60 / prefix) * (capacity_battery / power)
-                amount_per_charge = capacity_battery / times_to_full_charge
-                trigger_tag = '_trigger_' + str(trigger_price) if trigger_price > 0 else ''
-                appendix = "_battery capacity_" + str(capacity_battery)
+                    times_to_full_charge = (60 / prefix) * (capacity_battery / power)
+                    amount_per_charge = capacity_battery / times_to_full_charge
+                    trigger_tag = '_trigger_' + str(trigger_price) if trigger_price > 0 else ''
+                    appendix = "_battery capacity_" + str(capacity_battery)
 
-                # comm = MPI.COMM_WORLD
-                # rank = comm.Get_rank()
-                # size = comm.Get_size()
+                    # comm = MPI.COMM_WORLD
+                    # rank = comm.Get_rank()
+                    # size = comm.Get_size()
 
-                for i in range(fragments):
-                    # if i == rank:
-                    paths = []
-                    datas = []
+                    for i in range(thread_size):
+                        # if i == rank:
+                        new_thread = MyThread(thread_count, i, all_size, thread_size, length_simulation, mat_contents, times_to_full_charge,
+                                              capacity_battery,
+                                              trigger_price, top_k, amount_per_charge, scenario, appendix, trigger_tag,
+                                              mat_file_key)
+                        new_thread.start()
+                        thread_count += 1
+                        # new_thread.join()
 
-                    simulation_size = int(all_size / fragments)
-                    simulation_start = i * simulation_size
-                    for index_simulation in range(simulation_start, simulation_start + simulation_size):
-                        print(index_simulation)
-                        data = []
-                        for l in range(length_simulation):
-                            data.append(float(mat_contents[mat_file_key][l][index_simulation]))
-                        path = run(data, int(times_to_full_charge), capacity_battery, trigger_price, top_k)
-                        paths.append(path)
-                        datas.append(data)
-                    write_to_file(datas, paths, amount_per_charge, "scenario_" + str(scenario), appendix,
-                                  trigger_tag, simulation_start, simulation_size, length_simulation)
+
+class MyThread(threading.Thread):
+
+    def __init__(self,thread_count, i, all_size, thread_size, length_simulation, mat_contents, times_to_full_charge, capacity_battery,
+                 trigger_price, top_k, amount_per_charge, scenario, appendix, trigger_tag, mat_file_key):
+        threading.Thread.__init__(self)
+        self.thread_count = thread_count
+        self.i = i
+        self.all_size = all_size
+        self.thread_size = thread_size
+        self.length_simulation = length_simulation
+        self.mat_contents = mat_contents
+        self.times_to_full_charge = times_to_full_charge
+        self.capacity_battery = capacity_battery
+        self.trigger_price = trigger_price
+        self.top_k = top_k
+        self.amount_per_charge = amount_per_charge
+        self.scenario = scenario
+        self.appendix = appendix
+        self.trigger_tag = trigger_tag
+        self.mat_file_key = mat_file_key
+
+    def run(self):
+        paths = []
+        datas = []
+
+        simulation_size = int(self.all_size / self.thread_size)
+        simulation_start = self.i * simulation_size
+        for index_simulation in range(simulation_start, simulation_start + simulation_size):
+            print(f'Job {self.thread_count}: {index_simulation - simulation_start} / {simulation_size}')
+            data = []
+            for l in range(self.length_simulation):
+                data.append(float(self.mat_contents[self.mat_file_key][l][index_simulation]))
+            path = run(data, int(self.times_to_full_charge), self.capacity_battery, self.trigger_price, self.top_k)
+            paths.append(path)
+            datas.append(data)
+        write_to_file(datas, paths, self.amount_per_charge, "scenario_" + str(self.scenario), self.appendix,
+                      self.trigger_tag, simulation_start, simulation_size, self.length_simulation)
 
 
 def write_to_file(datas, paths, amount_per_charge, input_file, appendix, trigger_tag, simulation_start,
