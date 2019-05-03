@@ -3,7 +3,7 @@ import heapq
 import sys
 from os import walk
 import scipy.io as sio
-import threading
+import multiprocessing
 
 # Scenario : three half-hours rest is necessary after every second discharge for one hour battery.
 # For every iteration, record more states for each capacity and pick up topK of them to do the next iteration.
@@ -25,14 +25,14 @@ def main():
 
     prefixes = [30]
     trigger_price_array = [-100000]
-    capacity_battery_array = [100]
+    capacity_battery_array = [200]
     power = 100
     # scenarios = ['Spot_Price_sample.mat']
     scenario_input_files = load_inputs('inputs')
 
     # simulation_size = 3
     # simulation_start = 0
-    thread_size = 2
+    process_size = 3
     mat_file_key = 'Spot_Sims'
     thread_count = 0
 
@@ -44,6 +44,7 @@ def main():
         mat_contents = sio.loadmat('inputs/' + scenario)
         length_simulation = mat_contents[mat_file_key].shape[0]
         all_size = mat_contents[mat_file_key].shape[1]
+        # all_size =10
         print(length_simulation)
         for prefix in prefixes:
             for trigger_price in trigger_price_array:
@@ -60,9 +61,10 @@ def main():
                     # rank = comm.Get_rank()
                     # size = comm.Get_size()
 
-                    for i in range(thread_size):
+                    for i in range(process_size):
                         # if i == rank:
-                        new_thread = MyThread(thread_count, i, all_size, thread_size, length_simulation, mat_contents, times_to_full_charge,
+                        new_thread = MyThread(thread_count, i, all_size, process_size, length_simulation, mat_contents,
+                                              times_to_full_charge,
                                               capacity_battery,
                                               trigger_price, top_k, amount_per_charge, scenario, appendix, trigger_tag,
                                               mat_file_key)
@@ -71,12 +73,13 @@ def main():
                         # new_thread.join()
 
 
-class MyThread(threading.Thread):
+class MyThread(multiprocessing.Process):
 
-    def __init__(self,thread_count, i, all_size, thread_size, length_simulation, mat_contents, times_to_full_charge, capacity_battery,
+    def __init__(self, process_count, i, all_size, thread_size, length_simulation, mat_contents, times_to_full_charge,
+                 capacity_battery,
                  trigger_price, top_k, amount_per_charge, scenario, appendix, trigger_tag, mat_file_key):
-        threading.Thread.__init__(self)
-        self.thread_count = thread_count
+        multiprocessing.Process.__init__(self)
+        self.process_count = process_count
         self.i = i
         self.all_size = all_size
         self.thread_size = thread_size
@@ -99,7 +102,7 @@ class MyThread(threading.Thread):
         simulation_size = int(self.all_size / self.thread_size)
         simulation_start = self.i * simulation_size
         for index_simulation in range(simulation_start, simulation_start + simulation_size):
-            print(f'Job {self.thread_count}: {index_simulation - simulation_start} / {simulation_size}')
+            print(f'Job {self.process_count}: {index_simulation - simulation_start} / {simulation_size}')
             data = []
             for l in range(self.length_simulation):
                 data.append(float(self.mat_contents[self.mat_file_key][l][index_simulation]))
