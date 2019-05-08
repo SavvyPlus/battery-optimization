@@ -21,10 +21,10 @@ def load_inputs(folder):
 
 def main():
     # scenario_index = sys.argv[1]
-    top_k = 25
+    top_k = 19
 
     prefixes = [30]
-    trigger_price_array = [-100000]
+    trigger_price_array = [150]
     capacity_battery_array = [200]
     power = 100
     # scenarios = ['Spot_Price_sample.mat']
@@ -108,7 +108,7 @@ class MyThread(multiprocessing.Process):
                 data.append(float(self.mat_contents[self.mat_file_key][l][index_simulation]))
             path = run(data, int(self.times_to_full_charge), self.capacity_battery, self.trigger_price, self.top_k)
             paths.append(path)
-            datas.append(data)
+            # datas.append(data)
         write_to_file(datas, paths, self.amount_per_charge, "scenario_" + str(self.scenario), self.appendix,
                       self.trigger_tag, simulation_start, simulation_size, self.length_simulation)
 
@@ -170,7 +170,7 @@ def max_profit(capacity, index, no_action, buy_action, sell_action_1, states, cu
 def run(data, times_to_full_charge, capacity_battery, trigger_price, top_k):
     amount_per_charge = capacity_battery / times_to_full_charge
 
-    history_size = 20
+    history_size = 2
     loss_rate = 1.2
 
     boundary = -10000000
@@ -249,7 +249,7 @@ def discharge_action(data, times_to_full_charge, trigger_price, sell_amount, sta
 
 def charge_action(data, times_to_full_charge, trigger_price, buy_amount, states, current_i, next_i, i, j):
     for one_state in states[current_i][j - 1]:
-        if one_state.can_dispatch(i - 1) and data[i] > trigger_price:
+        if one_state.can_dispatch(i - 1):
             temp_state = State(times_to_full_charge)
             temp_state.initialise(one_state)
             temp_state.value = temp_state.value + buy_amount
