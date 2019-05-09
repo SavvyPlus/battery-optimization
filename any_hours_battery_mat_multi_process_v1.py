@@ -42,8 +42,8 @@ def main():
         print(scenario)
         mat_contents = sio.loadmat('inputs/' + scenario)
         length_simulation = mat_contents[mat_file_key].shape[0]
-        # all_size = mat_contents[mat_file_key].shape[1]
-        all_size =20
+        all_size = mat_contents[mat_file_key].shape[1]
+        # all_size =20
         print(length_simulation)
         for prefix in prefixes:
             for trigger_price in trigger_price_array:
