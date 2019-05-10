@@ -1,28 +1,32 @@
 import psutil
 import time
+import os
 
-process_lst = []
 
 def getProcess(pName):
+    shutdown_system = True
     # 获取当前系统所有进程id列表
-    all_pids  = psutil.pids()
+    all_pids = psutil.pids()
+    try:
+        for pid in all_pids:
+            p = psutil.Process(pid)
+            if pName == p.name():
+                percent = p.cpu_percent(0,0)
+                print(pid, percent)
+                shutdown_system &= percent < 10
+                # shutdown_system &= p.cpu_percent(0.1) < 0.1
+    except:
+        pass
+    return shutdown_system
 
-    # 遍历所有进程，名称匹配的加入process_lst
-    for pid in all_pids:
-        p = psutil.Process(pid)
-        if pName == p.name():
-            process_lst.append(p)
-
-    return process_lst
 
 # 获取进程名位Python的进程对象列表
-process_lst = getProcess("Python")
 
-# 获取内存利用率：
-for i in range(10):
-    for process_instance in process_lst:
-        print(process_instance.pid)
-        print(process_instance.memory_percent())
-        print(process_instance.cpu_percent(None))
-        print('\n')
+
+while True:
+    if getProcess("Python"):
+        # os.system('which user')
+        os.system('echo password | sudo -S shutdown')
+        break
+    print('*****\n')
     time.sleep(4)
