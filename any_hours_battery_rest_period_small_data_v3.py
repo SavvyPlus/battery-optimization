@@ -22,7 +22,7 @@ def main(top_k):
     # top_k = 20
     prefixes = [30]
     trigger_price_array = [-100000]
-    capacity_battery_array = [100]
+    capacity_battery_array = [200]
     power = 100
     # scenarios = ['Spot_Price_sample.mat']
     scenarios = ['Spot_Price_smallsample.mat']
@@ -267,14 +267,11 @@ class State:
 if __name__ == '__main__':
     x_axis = []
     time_length = []
-    for i in range(21,30):
-        if i % 2 == 1:
-            start = time.time()
-            main(i)
-            x_axis.append(i)
-            time_length.append(time.time()-start)
+    for i in range(21,34):
+        start = time.time()
+        main(i)
+        x_axis.append(i)
+        time_length.append(time.time()-start)
 
     plt.plot(x_axis,plot)
-    plt.show()
-    plt.plot(x_axis,time_length)
     plt.show()
